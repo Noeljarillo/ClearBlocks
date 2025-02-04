@@ -1,0 +1,38 @@
+specVersion: 1.0.0
+indexerHints:
+  prune: auto
+schema:
+  file: ./schema.graphql
+dataSources:
+  - kind: ethereum
+    name: AggregationRouterV5
+    network: base
+    source:
+      address: "0x1111111254EEB25477B68fb85Ed929f73A960582"
+      abi: AggregationRouterV5
+      startBlock: 2371900
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - NonceIncreased
+        - OrderCanceled
+        - OrderFilled
+        - OrderFilledRFQ
+        - OwnershipTransferred
+      abis:
+        - name: AggregationRouterV5
+          file: ./abis/AggregationRouterV5.json
+      eventHandlers:
+        - event: NonceIncreased(indexed address,uint256)
+          handler: handleNonceIncreased
+        - event: OrderCanceled(indexed address,bytes32,uint256)
+          handler: handleOrderCanceled
+        - event: OrderFilled(indexed address,bytes32,uint256)
+          handler: handleOrderFilled
+        - event: OrderFilledRFQ(bytes32,uint256)
+          handler: handleOrderFilledRFQ
+        - event: OwnershipTransferred(indexed address,indexed address)
+          handler: handleOwnershipTransferred
+      file: ./src/aggregation-router-v-5.ts
