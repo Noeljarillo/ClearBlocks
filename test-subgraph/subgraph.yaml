@@ -1,0 +1,28 @@
+specVersion: 1.0.0
+indexerHints:
+  prune: auto
+schema:
+  file: ./schema.graphql
+dataSources:
+  - kind: ethereum
+    name: MyErc20Contract
+    network: base
+    source:
+      address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+      abi: MyErc20Contract
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - AdminChanged
+        - Upgraded
+      abis:
+        - name: MyErc20Contract
+          file: ./abis/MyErc20Contract.json
+      eventHandlers:
+        - event: AdminChanged(address,address)
+          handler: handleAdminChanged
+        - event: Upgraded(address)
+          handler: handleUpgraded
+      file: ./src/my-erc-20-contract.ts
