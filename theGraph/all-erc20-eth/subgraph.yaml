@@ -5,11 +5,12 @@ schema:
   file: ./schema.graphql
 dataSources:
   - kind: ethereum
-    name: USDC
+    name: FiatTokenProxy
     network: mainnet
     source:
       address: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
-      abi: USDC
+      abi: FiatTokenProxy
+      startBlock: 6082465
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7
@@ -18,11 +19,11 @@ dataSources:
         - AdminChanged
         - Upgraded
       abis:
-        - name: USDC
-          file: ./abis/USDC.json
+        - name: FiatTokenProxy
+          file: ./abis/FiatTokenProxy.json
       eventHandlers:
         - event: AdminChanged(address,address)
           handler: handleAdminChanged
         - event: Upgraded(address)
           handler: handleUpgraded
-      file: ./src/usdc.ts
+      file: ./src/fiat-token-proxy.ts

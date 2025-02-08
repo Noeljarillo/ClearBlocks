@@ -1,7 +1,7 @@
 import {
   AdminChanged as AdminChangedEvent,
   Upgraded as UpgradedEvent
-} from "../generated/USDC/USDC"
+} from "../generated/FiatTokenProxy/FiatTokenProxy"
 import { AdminChanged, Upgraded } from "../generated/schema"
 
 export function handleAdminChanged(event: AdminChangedEvent): void {
