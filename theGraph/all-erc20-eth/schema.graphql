@@ -1,16 +1,39 @@
-type AdminChanged @entity(immutable: true) {
-  id: Bytes!
-  previousAdmin: Bytes! # address
-  newAdmin: Bytes! # address
-  blockNumber: BigInt!
-  blockTimestamp: BigInt!
-  transactionHash: Bytes!
+type Token @entity {
+  id: ID!
+  name: String
+  symbol: String
+  decimals: Int
+  balances: [TokenBalance!]! @derivedFrom(field: "token")
+  approvals: [TokenApproval!]! @derivedFrom(field: "token")
 }
 
-type Upgraded @entity(immutable: true) {
-  id: Bytes!
-  implementation: Bytes! # address
-  blockNumber: BigInt!
-  blockTimestamp: BigInt!
-  transactionHash: Bytes!
+type Account @entity {
+  id: ID!
+  balances: [TokenBalance!]! @derivedFrom(field: "account")
+  incomingApprovals: [TokenApproval!]! @derivedFrom(field: "spenderAccount")
+  outgoingApprovals: [TokenApproval!]! @derivedFrom(field: "ownerAccount")
+}
+
+type TokenBalance @entity {
+  id: ID!
+  token: Token!
+  account: Account!
+  value: BigDecimal!
+}
+
+type TokenApproval @entity {
+  id: ID!
+  token: Token!
+  ownerAccount: Account!
+  spenderAccount: Account!
+  value: BigDecimal!
+}
+
+type Transfer @entity(immutable: true) {
+  id: ID!
+  from: Bytes!
+  to: Bytes!
+  value: BigInt!
+  blockTimestamp: BigInt!   # Raw timestamp from the block
+  day: String!              # Computed day (e.g. days since epoch)
 }

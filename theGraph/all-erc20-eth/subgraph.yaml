@@ -1,29 +1,30 @@
-specVersion: 1.0.0
-indexerHints:
-  prune: auto
+specVersion: 0.0.4
+description: ERC20 Subgraph on Base
 schema:
   file: ./schema.graphql
 dataSources:
-  - kind: ethereum
-    name: FiatTokenProxy
-    network: mainnet
+  - kind: ethereum/contract
+    name: ERC20
+    network: base
     source:
-      address: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
-      abi: FiatTokenProxy
-      startBlock: 6082465
+      abi: ERC20
+      startBlock: 0
     mapping:
       kind: ethereum/events
-      apiVersion: 0.0.7
+      apiVersion: 0.0.6
       language: wasm/assemblyscript
       entities:
-        - AdminChanged
-        - Upgraded
+        - Account
+        - Token
+        - TokenApproval
+        - TokenBalance
+        - Transfer
       abis:
-        - name: FiatTokenProxy
-          file: ./abis/FiatTokenProxy.json
+        - name: ERC20
+          file: ./abis/ERC20.json
       eventHandlers:
-        - event: AdminChanged(address,address)
-          handler: handleAdminChanged
-        - event: Upgraded(address)
-          handler: handleUpgraded
-      file: ./src/fiat-token-proxy.ts
+        - event: Approval(indexed address,indexed address,uint256)
+          handler: handleApproval
+        - event: Transfer(indexed address,indexed address,uint256)
+          handler: handleTransfer
+      file: ./src/mapping.ts

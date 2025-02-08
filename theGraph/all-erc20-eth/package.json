@@ -1,13 +1,13 @@
 {
-  "name": "all-erc20-eth",
+  "name": "baseallerc20transfers",
   "license": "UNLICENSED",
   "scripts": {
     "codegen": "graph codegen",
     "build": "graph build",
-    "deploy": "graph deploy --node https://api.studio.thegraph.com/deploy/ all-erc20-eth",
-    "create-local": "graph create --node http://localhost:8020/ all-erc20-eth",
-    "remove-local": "graph remove --node http://localhost:8020/ all-erc20-eth",
-    "deploy-local": "graph deploy --node http://localhost:8020/ --ipfs http://localhost:5001 all-erc20-eth",
+    "deploy": "graph deploy --node https://api.studio.thegraph.com/deploy/ baseallerc20transfers",
+    "create-local": "graph create --node http://localhost:8020/ baseallerc20transfers",
+    "remove-local": "graph remove --node http://localhost:8020/ baseallerc20transfers",
+    "deploy-local": "graph deploy --node http://localhost:8020/ --ipfs http://localhost:5001 baseallerc20transfers",
     "test": "graph test"
   },
   "dependencies": {
