@@ -12,9 +12,7 @@ Clear Blocks is an innovative agentic application for on-chain analytics that le
 
 ## How It Works
 
-1. **Natural Language Input:** The application starts by asking users what type of blockchain analysis they require. The system supports queries related to SOF, UOF, and Portfolio analysis.
+1. **Natural Language Input:** The application starts by asking users what type of blockchain analysis they require. The system actually supports queries related to Sources of Funds (SOF), Usage of Funds (UOF), and Portfolio analysis.
 2. **Intent & Parameter Extraction:** The app uses natural language processing to identify the user's request, extract relevant parameters (such as blockchain addresses, tokens, and networks), and guide the user to provide missing details.
 3. **Analytics Execution:** Once all parameters are gathered, the corresponding analytics flow is executed. The app then returns the analysis results.
 4. **Decentralized Data Sourcing with Agent Rewards:** Agents running on the network can contribute by performing data retrieval tasks, thereby adding to a collective common graph and earning rewards in the Clear Blocks ecosystem.
-
-## Getting Started
