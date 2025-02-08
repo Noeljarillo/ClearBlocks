@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -13,6 +13,17 @@ export default function Home() {
   const [messages, setMessages] = useState<{ role: string; content: string }[]>([])
   const [input, setInput] = useState("")
   const [currentChart, setCurrentChart] = useState<ChartType>("bar")
+  const scrollAreaRef = useRef<HTMLDivElement>(null)
+
+  // Auto-scroll effect
+  useEffect(() => {
+    if (scrollAreaRef.current) {
+      const scrollElement = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]')
+      if (scrollElement) {
+        scrollElement.scrollTop = scrollElement.scrollHeight
+      }
+    }
+  }, [messages]) // Scroll whenever messages change
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -138,7 +149,7 @@ export default function Home() {
             <CardTitle className="text-2xl text-blue-700">Interactive Chat</CardTitle>
           </CardHeader>
           <CardContent>
-            <ScrollArea className="h-[400px] mb-4 p-4 border rounded-lg bg-white">
+            <ScrollArea ref={scrollAreaRef} className="h-[400px] mb-4 p-4 border rounded-lg bg-white">
               {messages.map((message, index) => (
                 <ChatMessage key={index} role={message.role} content={message.content} />
               ))}
