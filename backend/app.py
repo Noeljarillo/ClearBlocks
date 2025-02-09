@@ -3,6 +3,7 @@ from flask_cors import CORS
 import json
 import time
 from tools import what_flow, sof_flow, portfolio_flow, what_network, what_token, what_block_numbers, uof_flow
+import re
 
 app = Flask(__name__)
 CORS(app)
@@ -114,8 +115,10 @@ def handle_identify_intent(user_message):
         if address := extract_address(user_message):
             context.collected_params["address"] = address
         
-        if flow == "UOF" and (token := what_token(user_message)):
-            context.collected_params["token"] = token
+        if flow == "UOF":
+            token_val = what_token(user_message)
+            if token_val and token_val.strip().lower() != "none":
+                context.collected_params["token"] = token_val.strip()
         
         # Check what parameter we need next
         next_param, prompt = get_next_required_param()
@@ -148,11 +151,12 @@ def handle_get_params(user_message):
             return "I need an Base, Starknet, or Ethereum address starting with '0x'. Please provide a valid address."
     
     elif context.pending_param == "token":
-        if token := what_token(user_message):
-            context.collected_params["token"] = token
+        token_val = what_token(user_message)
+        if token_val and token_val.strip().lower() != "none":
+            context.collected_params["token"] = token_val.strip()
             context.pending_param = None
         else:
-            return "Please specify a token like ETH, USDC, or USDT or STRK, BASE."
+            return "Please specify a valid token like ETH, USDC, USDT, or STRK."
     
     elif context.pending_param == "network":
         # Normalize and validate the network input
@@ -253,8 +257,10 @@ def chat_completions():
             if address := extract_address(user_message):
                 context.collected_params["address"] = address
             
-            if flow == "UOF" and (token := what_token(user_message)):
-                context.collected_params["token"] = token
+            if flow == "UOF":
+                token_val = what_token(user_message)
+                if token_val and token_val.strip().lower() != "none":
+                    context.collected_params["token"] = token_val.strip()
             
             # Check if we have all required parameters
             next_param, prompt = get_next_required_param()
@@ -289,6 +295,26 @@ def get_context():
         "params": context.collected_params,
         "pending_param": context.pending_param
     })
+
+@app.route('/v1/uof/visualization', methods=['POST'])
+def uof_visualization():
+    data = request.get_json()
+    address = data.get('address')
+    token = data.get('token')
+    network = data.get('network')
+    start_block = data.get('start_block')
+    end_block = data.get('end_block')
+    
+    # Call the uof_flow function to generate the visualization
+    result = uof_flow(address, token, network, start_block, end_block)
+    
+    # Extract the base64 image from the markdown string
+    match = re.search(r'!\[UOF Graph\]\((data:image\/png;base64,[^)]+)\)', result)
+    if match:
+        image = match.group(1)
+        return jsonify({ "image": image }), 200
+    else:
+        return jsonify({ "error": "Visualization generation failed" }), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=1234, debug=True) 

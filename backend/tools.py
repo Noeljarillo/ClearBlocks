@@ -78,8 +78,95 @@ def what_network(input):
     return network
 
 def uof_flow(address, token, network, start_block, end_block):
-    # Placeholder for Use of Funds (UOF) analysis logic using provided parameters.
-    return f"Performing Use of Funds analysis for address {address} using token {token} on {network} network from block {start_block} to {end_block}."
+    # Ensure block range is in correct order
+    if start_block > end_block:
+        start_block, end_block = end_block, start_block
+    
+    # For starknet, map token name to actual contract address
+    if network.lower() == "starknet":
+        stark_token_mapping = {
+            "STRK": "0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d" 
+        }
+        token_address = stark_token_mapping.get(token.upper(), token)
+        df = get_transfers_stark(token_address, address, start_block, end_block)
+    else:
+        df = get_transfers_stark(token, address, start_block, end_block)
+    
+    if df.empty:
+        return "No transfer events found in the specified block range."
+    
+    import matplotlib
+    matplotlib.use('Agg')  # Set the backend before importing pyplot
+    import matplotlib.pyplot as plt
+    import networkx as nx
+    import io, base64
+    
+    # Filter transfers to only include those where target address is sender or receiver
+    df_filtered = df[
+        (df['from_address'] == address) | 
+        (df['to_address'] == address)
+    ].copy()
+    
+    # Build a directed graph from the filtered transfer events
+    G = nx.DiGraph()
+    
+    # Create a mapping for node labels
+    def get_node_label(addr):
+        return 'TARGET' if addr == address else (addr[:10] + '...')
+    
+    node_labels = {}  # Store consistent labels for nodes
+    
+    # Add edges with weights (amounts)
+    for _, row in df_filtered.iterrows():
+        from_addr = row['from_address']
+        to_addr = row['to_address']
+        amount = float(row['size'])
+        
+        # Get consistent labels for nodes
+        from_label = get_node_label(from_addr)
+        to_label = get_node_label(to_addr)
+        
+        # Store the labels
+        node_labels[from_addr] = from_label
+        node_labels[to_addr] = to_label
+        
+        if G.has_edge(from_label, to_label):
+            G[from_label][to_label]['weight'] += amount
+        else:
+            G.add_edge(from_label, to_label, weight=amount)
+    
+    # Create the figure using Agg backend
+    plt.figure(figsize=(12, 8))
+    pos = nx.spring_layout(G, k=2, iterations=50)
+    
+    # Draw the graph with improved aesthetics
+    node_colors = ['red' if node == 'TARGET' else 'lightblue' for node in G.nodes()]
+    nx.draw_networkx_nodes(G, pos, 
+                          node_color=node_colors,
+                          node_size=2000,
+                          alpha=0.7)
+    nx.draw_networkx_edges(G, pos,
+                          edge_color='gray',
+                          width=2,
+                          arrowsize=20)
+    
+    # Add labels with better formatting
+    nx.draw_networkx_labels(G, pos, font_size=8)
+    edge_labels = nx.get_edge_attributes(G, 'weight')
+    edge_labels = {k: f'{v:.4f}' for k, v in edge_labels.items()}
+    nx.draw_networkx_edge_labels(G, pos, edge_labels, font_size=8)
+    
+    plt.title(f'Token Transfers ({token}) - Blocks {start_block} to {end_block}')
+    
+    # Save the plot to a PNG image in memory and encode as base64
+    buf = io.BytesIO()
+    plt.savefig(buf, format='png', dpi=300, bbox_inches='tight')
+    plt.close()
+    buf.seek(0)
+    img_base64 = base64.b64encode(buf.getvalue()).decode('utf-8')
+    md_image = f"![UOF Graph](data:image/png;base64,{img_base64})"
+    
+    return (f"Usage of Funds analysis complete for address {address} using token {token} on {network} network from block {start_block} to {end_block}.\n" + md_image)
 
 def sof_flow(context):
     pass

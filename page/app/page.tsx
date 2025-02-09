@@ -13,6 +13,9 @@ export default function Home() {
   const [messages, setMessages] = useState<{ role: string; content: string }[]>([])
   const [input, setInput] = useState("")
   const [currentChart, setCurrentChart] = useState<ChartType>("bar")
+  const [graphImage, setGraphImage] = useState<string>("")
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [showVisualization, setShowVisualization] = useState(false)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
 
   // Auto-scroll effect
@@ -29,12 +32,9 @@ export default function Home() {
     e.preventDefault();
     if (input.trim()) {
       setMessages((prev) => [...prev, { role: "user", content: input }]);
-      
-      // Clear the input immediately after sending the message
       setInput("");
-
-      // Add an empty assistant message to update progressively
-      setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
+      setShowVisualization(false);
+      setGraphImage("");
 
       let accumulated = "";
       const onToken = (token: string) => {
@@ -44,10 +44,66 @@ export default function Home() {
           newMessages[newMessages.length - 1] = { role: "assistant", content: accumulated };
           return newMessages;
         });
+
+        // Check if we've received parameters and need to process visualization
+        if (accumulated.includes("Got all parameters") && accumulated.includes("getting tools")) {
+          setIsProcessing(true);
+          // Extract parameters and send request to process visualization
+          const params = accumulated.match(/Got all parameters \((.*?)\)/)?.[1];
+          if (params) {
+            processVisualization(params);
+          }
+        }
       };
 
-      const { chartType } = await LLMResponse(input, onToken);
-      setCurrentChart(chartType);
+      setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
+      await LLMResponse(input, onToken);
+    }
+  }
+
+  const processVisualization = async (params: string) => {
+    try {
+      setIsProcessing(true);
+      // Parse the parameters string into an object
+      const paramPairs = params.split(', ');
+      const paramObject = Object.fromEntries(
+        paramPairs.map(pair => {
+          const [key, value] = pair.split(': ');
+          return [key, value];
+        })
+      );
+
+      // Call our dedicated visualization endpoint
+      const response = await fetch('http://192.168.1.130:1234/v1/uof/visualization', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          address: paramObject.address,
+          token: paramObject.token,
+          network: paramObject.network,
+          start_block: parseInt(paramObject.start_block),
+          end_block: parseInt(paramObject.end_block)
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate visualization');
+      }
+
+      const data = await response.json();
+      
+      if (data.image) {
+        console.log("Received image data, setting state...");
+        setGraphImage(data.image);
+        setShowVisualization(true);
+      } else {
+        console.error("No image data in response");
+        throw new Error('No image data received');
+      }
+    } catch (error) {
+      console.error('Error processing visualization:', error);
+    } finally {
+      setIsProcessing(false);
     }
   }
 
@@ -57,7 +113,7 @@ export default function Home() {
     }
   }
 
-  const LLMResponse = async (input: string, onToken: (token: string) => void): Promise<{ chartType: ChartType }> => {
+  const LLMResponse = async (input: string, onToken: (token: string) => void): Promise<{ chartType: ChartType, result: string }> => {
     let result = "";
     let buffer = "";
     try {
@@ -132,11 +188,11 @@ export default function Home() {
         chartType = "pie";
       }
 
-      return { chartType };
+      return { chartType, result };
     } catch (error) {
       console.error("Error streaming LLM response:", error);
       onToken(" Sorry, an error occurred while fetching LLM response.");
-      return { chartType: "bar" };
+      return { chartType: "bar", result: "" };
     }
   }
 
@@ -168,14 +224,24 @@ export default function Home() {
             </form>
           </CardContent>
         </Card>
-        <Card className="shadow-lg">
-          <CardHeader>
-            <CardTitle className="text-2xl text-blue-700">Dynamic Visualization</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <DynamicChart type={currentChart} />
-          </CardContent>
-        </Card>
+        {(showVisualization || isProcessing) && (
+          <Card className="shadow-lg">
+            <CardHeader>
+              <CardTitle className="text-2xl text-blue-700">
+                {isProcessing ? "Processing Visualization..." : "Dynamic Visualization"}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {isProcessing ? (
+                <div className="flex items-center justify-center h-[400px]">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-700"></div>
+                </div>
+              ) : graphImage ? (
+                <img src={graphImage} alt="UOF Graph" style={{ width: '100%', height: 'auto' }} />
+              ) : null}
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   )
