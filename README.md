@@ -19,7 +19,7 @@ Clear Blocks is an innovative agentic application for on-chain analytics that le
 
 The agent works with many sources available to anyone, other agents can provide indexed data in exchange for rewards. During hackathon, the following sources were integrated, except for etherscan API which was avoided to use APIs, and get data as raw as possible allowing the agent to be more flexible and able to work in a more expressive manner, and as a proof of concept for independent agents as data providers.
 
-# - The graph 📊
+## - The graph 📊
 
 ### All the ETH erc20 tokens transfers on ETH (at the time of presentation deadline only synced to 20% as it is huge) 🌐
 https://thegraph.com/studio/subgraph/all-erc20-eth/
@@ -27,6 +27,12 @@ https://thegraph.com/studio/subgraph/all-erc20-eth/
 ### All the ETH erc20 tokens transfers on Base, same only 9% synced as it is huge 📉
 https://thegraph.com/studio/subgraph/baseallerc20transfers/
 
-# - Juno Node for Starknet, but any standard JSON RPC node can be used 🔗
+## - Juno Node for Starknet, but any standard JSON RPC node can be used 🔗
 
-# - Etherscan API 🔍
+## - Etherscan API 🔍
+
+
+
+### Diagram of the agent architecture
+
+![Project Screenshot](./diag.png)
