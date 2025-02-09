@@ -7,7 +7,7 @@ import psycopg2
 import pandas as pd
 load_dotenv()
 
-
+etherscan_api_key = os.getenv("ETHERSCAN_API_KEY")
 api_key = os.getenv("OPENAI_API_KEY")
 
 classifier_promt = """You are an assistant that only returns one of this words as input and nothing else [SOF, UOF, PORTFOLIO, NONE]
@@ -78,6 +78,10 @@ def what_network(input):
     return network
 
 def uof_flow(address, token, network, start_block, end_block):
+    # Added guard: ensure block numbers are provided
+    if start_block is None or end_block is None:
+        raise ValueError("start_block and end_block must be provided for UOF analysis.")
+    
     # Ensure block range is in correct order
     if start_block > end_block:
         start_block, end_block = end_block, start_block
@@ -171,8 +175,23 @@ def uof_flow(address, token, network, start_block, end_block):
 def sof_flow(context):
     pass
 
-def portfolio_flow(context):
-    pass
+def portfolio_flow(address):
+    try:
+        df_normal, df_erc20, balance = get_eth_address_info(address)
+        normal_transactions = []
+        if not df_normal.empty:
+            normal_transactions = df_normal.head(5).to_dict(orient='records')
+        erc20_transfers = []
+        if not df_erc20.empty:
+            erc20_transfers = df_erc20.head(5).to_dict(orient='records')
+        
+        return {
+            "ethBalance": round(balance, 4),
+            "normalTransactions": normal_transactions,
+            "erc20Transfers": erc20_transfers
+        }
+    except Exception as e:
+        return {"error": str(e)}
 
 
 
@@ -466,3 +485,25 @@ def format_graph_for_frontend(G):
 def what_block_numbers(input):
     entry = gpt4miniCall(api_key, block_numbers_prompt, input, max_tokens=20)
     return entry
+
+
+def get_balance_eth(address):
+    url = f"https://api.etherscan.io/api?module=account&action=balance&address={address}&tag=latest&apikey={etherscan_api_key}"
+
+    eth = requests.get(url).json()["result"]
+    eth = float(eth) / (10 ** 18)
+    return eth
+def get_tx_by_address(address):
+    url = f"https://api.etherscan.io/api?module=account&action=txlist&address={address}&startblock=0&endblock=99999999&page=1&offset=5&sort=desc&apikey={etherscan_api_key}"
+    return pd.DataFrame(requests.get(url).json()["result"])[['timeStamp', 'from', 'to', 'value', 'hash']]
+
+def erc20_transfers(address):
+    url = f"https://api.etherscan.io/api?module=account&action=tokentx&address={address}&startblock=0&endblock=99999999&page=1&offset=5&sort=desc&apikey={etherscan_api_key}"
+    return pd.DataFrame(requests.get(url).json()["result"])[['timeStamp', 'from', 'to', 'tokenName', 'value', 'tokenSymbol']]
+
+
+def get_eth_address_info(address):
+    df1 = get_tx_by_address(address)
+    df2 = erc20_transfers(address)
+    balance = get_balance_eth(address)
+    return df1, df2, balance

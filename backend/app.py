@@ -2,7 +2,7 @@ from flask import Flask, request, Response, stream_with_context, jsonify
 from flask_cors import CORS
 import json
 import time
-from tools import what_flow, sof_flow, portfolio_flow, what_network, what_token, what_block_numbers, uof_flow
+from tools import what_flow, sof_flow, portfolio_flow, what_network, what_token, what_block_numbers, uof_flow, get_eth_address_info
 import re
 
 app = Flask(__name__)
@@ -53,21 +53,29 @@ FLOW_PARAMS = {
 
 context = ConversationContext()
 
-def send_response(text: str, stream: bool = True):
+def send_response(text: str | dict, stream: bool = True):
     """Helper function to send responses"""
-    context.add_message("assistant", text)
+    context.add_message("assistant", text if isinstance(text, str) else json.dumps(text))
     
     if not stream:
         return jsonify({"choices": [{"message": {"content": text}}]})
     
     def generate():
-        tokens = text.split()
-        for token in tokens:
+        if isinstance(text, dict):
+            # For dictionary responses, send as a single message
             payload = {
-                "choices": [{"delta": {"content": token + " "}}]
+                "choices": [{"delta": {"content": json.dumps(text)}}]
             }
             yield f"data: {json.dumps(payload)}\n\n"
-            time.sleep(0.1)
+        else:
+            # For text responses, split and stream
+            tokens = text.split()
+            for token in tokens:
+                payload = {
+                    "choices": [{"delta": {"content": token + " "}}]
+                }
+                yield f"data: {json.dumps(payload)}\n\n"
+                time.sleep(0.1)
         yield "data: [DONE]\n\n"
     
     return Response(
@@ -219,12 +227,28 @@ def handle_execute_flow():
             network = context.collected_params.get("network")
             start_block = context.collected_params.get("start_block")
             end_block = context.collected_params.get("end_block")
-            result = uof_flow(address, token, network, start_block, end_block)
+            if start_block is None or end_block is None:
+                missing = []
+                if start_block is None:
+                    missing.append("starting block number")
+                if end_block is None:
+                    missing.append("ending block number")
+                missing_str = " and ".join(missing)
+                return f"Please provide the {missing_str} for the UOF analysis."
+            else:
+                result = uof_flow(address, token, network, start_block, end_block)
+                params_summary = f"address: {address}, token: {token}, network: {network}, start_block: {start_block}, end_block: {end_block}"
         elif context.current_flow == "PORTFOLIO":
             result = portfolio_flow(address)
+            params_summary = f"address: {address}, network: {context.collected_params.get('network')}"
         else:
             result = "Something went wrong. Let's start over."
             context.reset()
+            return result
+
+        # Add parameters summary to the result if it's a dictionary
+        if isinstance(result, dict):
+            result = f"Got all parameters ({params_summary}), getting tools\n" + json.dumps(result)
         
         # Reset for next conversation
         context.current_state = "WELCOME"
@@ -304,17 +328,45 @@ def uof_visualization():
     network = data.get('network')
     start_block = data.get('start_block')
     end_block = data.get('end_block')
-    
-    # Call the uof_flow function to generate the visualization
-    result = uof_flow(address, token, network, start_block, end_block)
-    
-    # Extract the base64 image from the markdown string
-    match = re.search(r'!\[UOF Graph\]\((data:image\/png;base64,[^)]+)\)', result)
-    if match:
-        image = match.group(1)
-        return jsonify({ "image": image }), 200
-    else:
-        return jsonify({ "error": "Visualization generation failed" }), 500
+
+    # Validate block numbers exist
+    if start_block is None or end_block is None:
+        return jsonify({"error": "Missing start_block or end_block for UOF visualization."}), 400
+    try:
+        start_block = int(start_block)
+        end_block = int(end_block)
+    except (TypeError, ValueError):
+        return jsonify({"error": "Invalid block numbers provided."}), 400
+
+    try:
+        result = uof_flow(address, token, network, start_block, end_block)
+        # Extract the base64 image from the markdown string
+        match = re.search(r'!\[UOF Graph\]\((data:image\/png;base64,[^)]+)\)', result)
+        if match:
+            image = match.group(1)
+            return jsonify({ "image": image }), 200
+        else:
+            return jsonify({ "error": "Visualization generation failed" }), 500
+    except Exception as e:
+        return jsonify({ "error": str(e) }), 500
+
+# New Portfolio Visualization Endpoint - simplified response
+@app.route('/v1/portfolio/visualization', methods=['POST'])
+def portfolio_visualization():
+    data = request.get_json()
+    address = data.get('address')
+    try:
+        df_normal, df_erc20, balance = get_eth_address_info(address)
+        normal_tx_count = len(df_normal) if not df_normal.empty else 0
+        erc20_tx_count = len(df_erc20) if not df_erc20.empty else 0
+        response = {
+            "ethBalance": round(balance, 4),
+            "normalTxCount": normal_tx_count,
+            "erc20TxCount": erc20_tx_count
+        }
+        return jsonify(response), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=1234, debug=True) 

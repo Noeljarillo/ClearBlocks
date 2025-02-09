@@ -14,6 +14,7 @@ export default function Home() {
   const [input, setInput] = useState("")
   const [currentChart, setCurrentChart] = useState<ChartType>("bar")
   const [graphImage, setGraphImage] = useState<string>("")
+  const [portfolioData, setPortfolioData] = useState<any>(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [showVisualization, setShowVisualization] = useState(false)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
@@ -35,17 +36,40 @@ export default function Home() {
       setInput("");
       setShowVisualization(false);
       setGraphImage("");
+      setPortfolioData(null);
 
       let accumulated = "";
       const onToken = (token: string) => {
         accumulated += token;
         setMessages((prev) => {
           const newMessages = [...prev];
-          newMessages[newMessages.length - 1] = { role: "assistant", content: accumulated };
+          // Try to parse as JSON in case it's a portfolio response
+          try {
+            if (accumulated.includes("Got all parameters") && accumulated.includes("getting tools")) {
+              const jsonStr = accumulated.split("\n")[1]; // Get the JSON part after the parameters line
+              const portfolioData = JSON.parse(jsonStr);
+              setPortfolioData(portfolioData);
+              setShowVisualization(true);
+              newMessages[newMessages.length - 1] = { 
+                role: "assistant", 
+                content: accumulated.split("\n")[0] // Only show the parameters line
+              };
+            } else {
+              newMessages[newMessages.length - 1] = { 
+                role: "assistant", 
+                content: accumulated 
+              };
+            }
+          } catch (e) {
+            newMessages[newMessages.length - 1] = { 
+              role: "assistant", 
+              content: accumulated 
+            };
+          }
           return newMessages;
         });
 
-        // Check if we've received parameters and need to process visualization
+        // Check if we've received parameters for UOF visualization
         if (accumulated.includes("Got all parameters") && accumulated.includes("getting tools")) {
           setIsProcessing(true);
           // Extract parameters and send request to process visualization
@@ -66,42 +90,62 @@ export default function Home() {
       setIsProcessing(true);
       // Parse the parameters string into an object
       const paramPairs = params.split(', ');
-      const paramObject = Object.fromEntries(
+      const paramObject: any = Object.fromEntries(
         paramPairs.map(pair => {
           const [key, value] = pair.split(': ');
           return [key, value];
         })
       );
 
-      // Call our dedicated visualization endpoint
-      const response = await fetch('http://192.168.1.130:1234/v1/uof/visualization', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          address: paramObject.address,
-          token: paramObject.token,
-          network: paramObject.network,
-          start_block: parseInt(paramObject.start_block),
-          end_block: parseInt(paramObject.end_block)
-        })
-      });
+      // Check if this is a portfolio request (only address and network)
+      const isPortfolioRequest = Object.keys(paramObject).length === 2 && 
+                                paramObject.address && 
+                                paramObject.network;
 
-      if (!response.ok) {
-        throw new Error('Failed to generate visualization');
-      }
-
-      const data = await response.json();
-      
-      if (data.image) {
-        console.log("Received image data, setting state...");
-        setGraphImage(data.image);
+      if (isPortfolioRequest) {
+        // Portfolio visualization
+        const response = await fetch('http://192.168.1.130:1234/v1/portfolio/visualization', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            address: paramObject.address
+          })
+        });
+        if (!response.ok) {
+          throw new Error('Failed to generate portfolio visualization');
+        }
+        const data = await response.json();
+        setPortfolioData(data);
+        setGraphImage("");
         setShowVisualization(true);
       } else {
-        console.error("No image data in response");
-        throw new Error('No image data received');
+        // UOF visualization
+        const response = await fetch('http://192.168.1.130:1234/v1/uof/visualization', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            address: paramObject.address,
+            token: paramObject.token,
+            network: paramObject.network,
+            start_block: parseInt(paramObject.start_block),
+            end_block: parseInt(paramObject.end_block)
+          })
+        });
+        if (!response.ok) {
+          throw new Error('Failed to generate visualization');
+        }
+        const data = await response.json();
+        if (data.image) {
+          setGraphImage(data.image);
+          setPortfolioData(null);
+          setShowVisualization(true);
+        } else {
+          throw new Error('No image data received');
+        }
       }
     } catch (error) {
       console.error('Error processing visualization:', error);
+      setShowVisualization(false);
     } finally {
       setIsProcessing(false);
     }
@@ -235,6 +279,21 @@ export default function Home() {
               {isProcessing ? (
                 <div className="flex items-center justify-center h-[400px]">
                   <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-700"></div>
+                </div>
+              ) : portfolioData ? (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="border p-4 text-center">
+                    <h3 className="text-lg font-bold">ETH Balance</h3>
+                    <p>{portfolioData.ethBalance} ETH</p>
+                  </div>
+                  <div className="border p-4 text-center">
+                    <h3 className="text-lg font-bold">Normal Transactions</h3>
+                    <p>{portfolioData.normalTxCount}</p>
+                  </div>
+                  <div className="border p-4 text-center">
+                    <h3 className="text-lg font-bold">ERC20 Transfers</h3>
+                    <p>{portfolioData.erc20TxCount}</p>
+                  </div>
                 </div>
               ) : graphImage ? (
                 <img src={graphImage} alt="UOF Graph" style={{ width: '100%', height: 'auto' }} />
