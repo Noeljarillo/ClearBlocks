@@ -1,2 +1,2 @@
-export type ChartType = "bar" | "line" | "pie"
+export type ChartType = "bar" | "line" | "pie" | "network";
 

@@ -25,6 +25,9 @@ if it does not much one and only one of the categories return none
 
 Input message:"""
 
+get_token_prompt = """You are a helpful asitant your task is to extract the token from the user request,
+if the user does not provide a token return none, the token can be STRK, BASE, ETH, USDC, or none nothing else"""
+
 metrics_prompt = """
 You are an assistant, you are given a data request you should suggest metrics that would be useful to answer the request
 
@@ -47,6 +50,12 @@ get_network = """Your task is to get the network of the chain from the user requ
    or similar, be sure to not confuse token names with the network, 
    the network can be base, starknet, or eth, only return the network, or none nothing else"""
 
+# New prompt for extracting block numbers
+block_numbers_prompt = """Your task is to extract the starting and ending block numbers from the user request. If the user provides block numbers, return them separated by a comma with no spaces (e.g., "1000,2000"). If not provided, return "none"."""
+
+def what_token(input):
+    entry = gpt4miniCall(api_key, get_token_prompt, input, max_tokens=5)
+    return entry
 
 def what_flow(input):
     entry = gpt4miniCall(api_key, classifier_promt, input, max_tokens=5)
@@ -68,14 +77,9 @@ def what_network(input):
     network = gpt4miniCall(api_key, get_network, input, max_tokens=5)
     return network
 
-def uof_flow(context):
-    address = gpt4miniCall(api_key, get_address, context, max_tokens=28)
-    
-    if address == "none" or not address.startswith("0x"):
-        print("call the user for the address")
-    else:
-        print("address: ", address)
-
+def uof_flow(address, token, network, start_block, end_block):
+    # Placeholder for Use of Funds (UOF) analysis logic using provided parameters.
+    return f"Performing Use of Funds analysis for address {address} using token {token} on {network} network from block {start_block} to {end_block}."
 
 def sof_flow(context):
     pass
@@ -114,7 +118,9 @@ def gpt4miniCall(api_key, system_prompt, user_message, max_tokens=10):
 
 
 ###get functions and db
-def get_stark_uof(token_address, address):
+def get_uof_graph(token_address, addres, network, start_block, end_block):
+    if network == "starknet":
+        get_transfers_stark(token_address, address, start_block, end_block)
 
     return df2
 
@@ -340,3 +346,36 @@ def get_and_insert_transfers(token_address, network, start_block, end_block):
                 print(f"Error message: {str(e)}")
     else:
         pass
+
+def format_graph_for_frontend(G):
+    nodes = []
+    links = []
+    
+    # Calculate node sizes based on total transaction value
+    node_total_value = {}
+    for node in G.nodes():
+        total = sum(data['value'] for _, _, data in G.out_edges(node, data=True))
+        node_total_value[node] = total
+        nodes.append({
+            "id": node,
+            "size": 300 + 1000 * total  # Base size + scale factor * total ETH
+        })
+    
+    # Format edges/links
+    for u, v, data in G.edges(data=True):
+        if data['value'] >= 0.001:  # Filter small transactions
+            links.append({
+                "source": u,
+                "target": v,
+                "value": data['value'],
+                "timestamp": data.get('timestamp', 0)
+            })
+    
+    return {
+        "nodes": nodes,
+        "links": links
+    }
+
+def what_block_numbers(input):
+    entry = gpt4miniCall(api_key, block_numbers_prompt, input, max_tokens=20)
+    return entry

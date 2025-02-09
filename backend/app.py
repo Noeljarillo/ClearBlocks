@@ -2,7 +2,7 @@ from flask import Flask, request, Response, stream_with_context, jsonify
 from flask_cors import CORS
 import json
 import time
-from tools import what_flow, uof_flow, sof_flow, portfolio_flow, what_network, get_stark_uof
+from tools import what_flow, sof_flow, portfolio_flow, what_network, what_token, what_block_numbers, uof_flow
 
 app = Flask(__name__)
 CORS(app)
@@ -36,12 +36,13 @@ FLOW_PARAMS = {
     "UOF": {
         "address": "Please provide the address you want to analyze",
         "token": "Which token would you like to track? (e.g., ETH, USDC, USDT)",
-        "network": "Which network would you like to use? (Base, Starknet, or ETH Mainnet)"
+        "network": "Which network would you like to use? (Base, Starknet, or ETH Mainnet)",
+        "start_block": "Please provide the starting block number for the analysis",
+        "end_block": "Please provide the ending block number for the analysis"
     },
     "SOF": {
         "address": "Please provide the address you want to analyze",
         "network": "Which network would you like to use? (Base, Starknet, or ETH Mainnet)"
-        
     },
     "PORTFOLIO": {
         "address": "Please provide the address you want to analyze",
@@ -82,14 +83,7 @@ def extract_address(message: str) -> str:
             return word
     return None
 
-def extract_token(message: str) -> str:
-    """Extract token from message if present"""
-    common_tokens = ["ETH", "USDC", "USDT", "WETH"]
-    words = message.upper().split()
-    for token in common_tokens:
-        if token in words:
-            return token
-    return None
+
 
 def get_next_required_param():
     """Get the next parameter we need to collect based on the flow"""
@@ -120,7 +114,7 @@ def handle_identify_intent(user_message):
         if address := extract_address(user_message):
             context.collected_params["address"] = address
         
-        if flow == "UOF" and (token := extract_token(user_message)):
+        if flow == "UOF" and (token := what_token(user_message)):
             context.collected_params["token"] = token
         
         # Check what parameter we need next
@@ -145,7 +139,7 @@ def handle_get_params(user_message):
         context.pending_param = next_param
         return prompt
     
-    # Handle parameter collection based on type
+    # Existing handling for address, token, and network
     if context.pending_param == "address":
         if address := extract_address(user_message):
             context.collected_params["address"] = address
@@ -154,11 +148,12 @@ def handle_get_params(user_message):
             return "I need an Base, Starknet, or Ethereum address starting with '0x'. Please provide a valid address."
     
     elif context.pending_param == "token":
-        if token := extract_token(user_message):
+        if token := what_token(user_message):
             context.collected_params["token"] = token
             context.pending_param = None
         else:
             return "Please specify a token like ETH, USDC, or USDT or STRK, BASE."
+    
     elif context.pending_param == "network":
         # Normalize and validate the network input
         network = what_network(user_message)
@@ -168,7 +163,38 @@ def handle_get_params(user_message):
             context.pending_param = None
         else:
             return "Please specify a valid network: Base, Starknet, or ETH Mainnet."
-
+    
+    # New handling for starting block
+    elif context.pending_param == "start_block":
+        block_range = what_block_numbers(user_message)
+        if block_range != "none" and "," in block_range:
+            try:
+                start_str, end_str = block_range.split(",")
+                start_block = int(start_str.strip())
+                end_block = int(end_str.strip())
+                context.collected_params["start_block"] = start_block
+                context.collected_params["end_block"] = end_block
+                context.pending_param = None
+            except ValueError:
+                return "Could not parse block numbers. Please provide them as integers separated by a comma (e.g., 1000,2000)."
+        else:
+            try:
+                start_block = int(user_message.strip())
+                context.collected_params["start_block"] = start_block
+                context.pending_param = "end_block"
+                return "Please provide the ending block number for the analysis."
+            except ValueError:
+                return "Please provide a valid starting block number."
+    
+    # New handling for ending block
+    elif context.pending_param == "end_block":
+        try:
+            end_block = int(user_message.strip())
+            context.collected_params["end_block"] = end_block
+            context.pending_param = None
+        except ValueError:
+            return "Please provide a valid ending block number."
+    
     # Check if we need more parameters
     next_param, prompt = get_next_required_param()
     if next_param:
@@ -177,11 +203,6 @@ def handle_get_params(user_message):
     else:
         context.current_state = "EXECUTE_FLOW"
         params_summary = ", ".join(f"{k}: {v}" for k, v in context.collected_params.items())
-        #generate graph 
-        #Chekck if the blocks exist
-
-        #tx_df = get_stark_uof(context.collected_params.get("token"), context.collected_params.get("address"))
-
         return f"Got all parameters ({params_summary}), getting tools"
 
 def handle_execute_flow():
@@ -190,8 +211,11 @@ def handle_execute_flow():
         if context.current_flow == "SOF":
             result = sof_flow(address)
         elif context.current_flow == "UOF":
-            token = context.collected_params.get("token", "ETH")  # Default to ETH if not specified
-            result = uof_flow(address, token)  # You'll need to modify uof_flow to accept token parameter
+            token = context.collected_params.get("token", "ETH")
+            network = context.collected_params.get("network")
+            start_block = context.collected_params.get("start_block")
+            end_block = context.collected_params.get("end_block")
+            result = uof_flow(address, token, network, start_block, end_block)
         elif context.current_flow == "PORTFOLIO":
             result = portfolio_flow(address)
         else:
@@ -229,7 +253,7 @@ def chat_completions():
             if address := extract_address(user_message):
                 context.collected_params["address"] = address
             
-            if flow == "UOF" and (token := extract_token(user_message)):
+            if flow == "UOF" and (token := what_token(user_message)):
                 context.collected_params["token"] = token
             
             # Check if we have all required parameters
