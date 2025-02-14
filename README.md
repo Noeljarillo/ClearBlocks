@@ -1,6 +1,6 @@
 # Clear Blocks: Agentic On-Chain Analytics App 🚀
 
-Clear Blocks is an innovative agentic application for on-chain analytics that leverages natural language processing to allow users to effortlessly query and analyze blockchain data. Whether you're interested in Sources of Funds (SOF) 💰, Usage of Funds (UOF) 📊, or Portfolio analytics 📈, Clear Blocks transforms your natural language queries into actionable insights.
+Clear Blocks is an innovative agentic application for on-chain analytics that leverages natural language processing to allow users to effortlessly query and analyze blockchain data. Whether you're interested in Sources of Tokens 💰, Tokens Destination 📊, or Portfolio analytics 📈, Clear Blocks transforms your natural language queries into actionable insights.
 
 ## Key Features 🌟
 
